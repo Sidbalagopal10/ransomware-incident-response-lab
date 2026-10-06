@@ -1,0 +1,30 @@
+SIGMA RULE VALIDATION RESULTS
+=============================
+
+Validation Tool: Sigma CLI 3.1.0
+Command: sigma check *.yml
+Detection Directory: C:\IR-Lab\Detections
+
+Rules Validated:
+- local_account_creation.yml
+- local_admin_group_add.yml
+- powershell_compress_archive.yml
+- powershell_download.yml
+- powershell_http_upload.yml
+
+Sigma CLI Result:
+Found 0 errors, 0 condition errors and 0 issues.
+No rule errors found.
+No condition errors found.
+No validation issues found.
+
+RESULT: PASS
+
+All five custom Sigma detection rules successfully parsed and passed
+Sigma CLI validation with zero reported rule errors, condition errors,
+or validation issues.
+
+Note:
+Detection logic was additionally correlated against telemetry collected
+during the controlled IR lab. Sigma validation confirms rule validity;
+it does not by itself demonstrate that the rules fired in a production SIEM.

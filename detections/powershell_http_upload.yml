@@ -1,0 +1,30 @@
+﻿title: PowerShell Invoke-WebRequest File Upload
+id: 8a0c3957-5933-4d75-91d7-111e424f8a05
+status: experimental
+description: Detects PowerShell Invoke-WebRequest using POST with an input file, which may indicate data exfiltration.
+author: Siddarth Balagopal
+date: 2026-10-04
+tags:
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    product: windows
+    service: powershell
+detection:
+    selection_web:
+        ScriptBlockText|contains:
+            - 'Invoke-WebRequest'
+    selection_post:
+        ScriptBlockText|contains:
+            - '-Method POST'
+            - "-Method 'POST'"
+            - '-Method "POST"'
+    selection_file:
+        ScriptBlockText|contains:
+            - '-InFile'
+    condition: selection_web and selection_post and selection_file
+falsepositives:
+    - Legitimate API uploads
+    - Administrative automation
+    - Internal file-transfer scripts
+level: high

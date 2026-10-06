@@ -1,0 +1,30 @@
+﻿title: Account Added to Local Administrators Group Using Net
+id: 8a0c3957-5933-4d75-91d7-111e424f8a03
+status: experimental
+description: Detects use of net.exe or net1.exe to modify the local Administrators group.
+author: Siddarth Balagopal
+date: 2026-10-04
+tags:
+    - attack.persistence
+    - attack.privilege-escalation
+    - attack.t1098.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+    selection_group:
+        CommandLine|contains:
+            - 'localgroup'
+            - 'administrators'
+    selection_add:
+        CommandLine|contains:
+            - '/add'
+    condition: selection_image and all of selection_group and selection_add
+falsepositives:
+    - Legitimate administrator account management
+    - IT provisioning
+level: high

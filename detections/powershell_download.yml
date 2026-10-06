@@ -1,0 +1,32 @@
+﻿title: PowerShell Invoke-WebRequest File Download
+id: 8a0c3957-5933-4d75-91d7-111e424f8a01
+status: experimental
+description: Detects PowerShell Invoke-WebRequest activity using an output file, which may indicate payload or tool transfer.
+author: Siddarth Balagopal
+date: 2026-10-04
+tags:
+    - attack.command-and-control
+    - attack.t1105
+    - attack.execution
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_download:
+        CommandLine|contains:
+            - 'Invoke-WebRequest'
+            - 'iwr '
+    selection_output:
+        CommandLine|contains:
+            - '-OutFile'
+            - '-OutFile '
+    condition: selection_image and selection_download and selection_output
+falsepositives:
+    - Legitimate administrative scripts
+    - Software deployment and automation
+level: medium

@@ -1,0 +1,22 @@
+﻿title: PowerShell Compress-Archive Used for Data Staging
+id: 8a0c3957-5933-4d75-91d7-111e424f8a04
+status: experimental
+description: Detects PowerShell Compress-Archive usage that may represent preparation of collected data for exfiltration.
+author: Siddarth Balagopal
+date: 2026-10-04
+tags:
+    - attack.collection
+    - attack.t1560.001
+logsource:
+    product: windows
+    service: powershell
+detection:
+    selection:
+        ScriptBlockText|contains:
+            - 'Compress-Archive'
+    condition: selection
+falsepositives:
+    - Backup scripts
+    - Administrative archiving
+    - Software packaging
+level: low
